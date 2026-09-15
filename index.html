@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stuff to Investigate</title>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --fg: #1f2328;
+    --muted: #6b7280;
+    --line: #e5e3dc;
+    --accent: #2f6fdb;
+    --accent-soft: #e8f0fd;
+    --danger: #c0392b;
+    --hover: #f1efe8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 22px; border-bottom: 1px solid var(--line); background: #fff;
+    position: sticky; top: 0; z-index: 2;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  header .spacer { flex: 1; }
+  header .status { color: var(--muted); font-size: 12.5px; }
+  button {
+    font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px;
+    border: 1px solid var(--line); background: #fff; color: var(--fg); cursor: pointer;
+  }
+  button:hover { background: var(--hover); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.05); }
+  main { max-width: 900px; margin: 0 auto; padding: 22px 22px 120px; }
+  .help { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+  .help kbd {
+    font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px;
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: #fff;
+  }
+
+  /* ---- tree ---- */
+  ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; }
+  ul.tree ul { margin-left: 22px; border-left: 1px solid var(--line); padding-left: 6px; }
+  li.node { margin: 1px 0; }
+  .row {
+    display: flex; align-items: flex-start; gap: 4px; padding: 3px 6px 3px 2px;
+    border-radius: 6px; min-height: 30px;
+  }
+  .row:hover { background: var(--hover); }
+  .row.editing { background: var(--accent-soft); }
+  .toggle {
+    flex: none; width: 20px; height: 24px; border: 0; background: none; padding: 0;
+    color: var(--muted); font-size: 11px; line-height: 24px; cursor: pointer;
+  }
+  .toggle.leaf { visibility: hidden; }
+  .toggle:hover { background: none; color: var(--fg); }
+  .text {
+    flex: 1; padding: 2px 6px; border-radius: 4px; cursor: text; white-space: pre-wrap;
+    word-break: break-word; min-width: 40px;
+  }
+  .text.empty { color: var(--muted); font-style: italic; }
+  .editor {
+    flex: 1; font: inherit; padding: 2px 6px; border: 1px solid var(--accent);
+    border-radius: 4px; background: #fff; resize: none; overflow: hidden; line-height: 1.45;
+  }
+  .count { color: var(--muted); font-size: 12px; padding: 3px 4px; flex: none; }
+  .actions { display: flex; gap: 2px; flex: none; opacity: 0; transition: opacity .12s; }
+  .row:hover .actions, .row.editing .actions { opacity: 1; }
+  .actions button {
+    padding: 2px 7px; font-size: 12px; border-color: transparent; background: none; color: var(--muted);
+  }
+  .actions button:hover { background: #fff; border-color: var(--line); color: var(--fg); }
+  .actions button.del:hover { color: var(--danger); }
+  .add-root { margin-top: 14px; }
+  .empty-state { color: var(--muted); padding: 30px 0; text-align: center; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Stuff to Investigate</h1>
+  <span class="status" id="status"></span>
+  <span class="spacer"></span>
+  <button id="expandAll" title="Expand every node">Expand all</button>
+  <button id="collapseAll" title="Collapse every node">Collapse all</button>
+  <button id="exportBtn" title="Download the whole tree as a JSON file">Export JSON</button>
+  <button id="importBtn" title="Load a JSON file exported from this tool">Import JSON</button>
+  <input type="file" id="importFile" accept="application/json,.json">
+</header>
+
+<main>
+  <p class="help">
+    Click text to edit. <kbd>Enter</kbd> saves and adds a sibling below,
+    <kbd>Shift</kbd>+<kbd>Enter</kbd> inserts a line break, <kbd>Tab</kbd> indents under the node above,
+    <kbd>Shift</kbd>+<kbd>Tab</kbd> outdents, <kbd>Esc</kbd> cancels. Hover a node for
+    <em>+ child</em>, <em>+ sibling</em>, and <em>delete</em>.
+  </p>
+
+  <ul class="tree" id="tree"></ul>
+  <button class="add-root primary" id="addRoot">+ Add top-level item</button>
+</main>
+
+<script>
+/* ==========================================================================
+   Data model
+   --------------------------------------------------------------------------
+   Nodes live in a flat map keyed by id. Hierarchy is expressed by each node's
+   `children` array of ids, and a single ROOT node holds the top-level items.
+   This is deliberately graph-friendly: turning this into a network later (a
+   node with several parents, cross-links between questions) only means
+   allowing an id to appear in more than one `children` array.
+
+   node = {
+     id:        string,
+     text:      string,        // plain text for now
+     kind:      'question' | 'finding' | 'note',  // not surfaced in UI yet
+     children:  string[],
+     collapsed: boolean,
+     created:   ISO timestamp
+   }
+   ========================================================================== */
+const STORAGE_KEY = 'stuff-to-investigate:v1';
+const ROOT = 'root';
+
+let state = load();
+
+function uid() {
+  return Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+}
+
+function makeNode(text = '', kind = 'question') {
+  return { id: uid(), text, kind, children: [], collapsed: false, created: new Date().toISOString() };
+}
+
+function blankState() {
+  const nodes = {};
+  nodes[ROOT] = { id: ROOT, text: '', kind: 'root', children: [], collapsed: false };
+  return { version: 1, nodes };
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.nodes && parsed.nodes[ROOT]) return parsed;
+    }
+  } catch (e) { console.warn('Could not read saved data', e); }
+  return seedState();
+}
+
+function seedState() {
+  // A tiny starter tree so the page isn't empty the first time.
+  const s = blankState();
+  const q = makeNode('Example question: what controls X?');
+  const sub = makeNode('Sub-question: does Y affect X in system Z?');
+  const finding = makeNode('Finding: preliminary data suggests yes (see lab notebook, 2026-08)', 'finding');
+  sub.children.push(finding.id);
+  q.children.push(sub.id);
+  s.nodes[ROOT].children.push(q.id);
+  [q, sub, finding].forEach(n => s.nodes[n.id] = n);
+  return s;
+}
+
+let saveTimer = null;
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const el = document.getElementById('status');
+  el.textContent = 'Saved ' + new Date().toLocaleTimeString();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { el.textContent = ''; }, 2500);
+}
+
+/* ---- tree helpers ---- */
+function parentOf(id) {
+  for (const n of Object.values(state.nodes)) {
+    if (n.children.includes(id)) return n;
+  }
+  return null;
+}
+
+function addChild(parentId, text = '', index = null) {
+  const node = makeNode(text);
+  state.nodes[node.id] = node;
+  const parent = state.nodes[parentId];
+  if (index === null || index < 0 || index > parent.children.length) parent.children.push(node.id);
+  else parent.children.splice(index, 0, node.id);
+  parent.collapsed = false;
+  return node;
+}
+
+function addSibling(id, text = '') {
+  const parent = parentOf(id);
+  const idx = parent.children.indexOf(id);
+  return addChild(parent.id, text, idx + 1);
+}
+
+function countDescendants(id) {
+  let c = 0;
+  for (const ch of state.nodes[id].children) c += 1 + countDescendants(ch);
+  return c;
+}
+
+function removeNode(id) {
+  const parent = parentOf(id);
+  if (!parent) return;
+  const toDelete = [id];
+  for (let i = 0; i < toDelete.length; i++) toDelete.push(...state.nodes[toDelete[i]].children);
+  toDelete.forEach(x => delete state.nodes[x]);
+  parent.children = parent.children.filter(x => x !== id);
+}
+
+/** Move a node under its previous sibling (Tab). Returns true if it moved. */
+function indentNode(id) {
+  const parent = parentOf(id);
+  const idx = parent.children.indexOf(id);
+  if (idx === 0) return false;
+  const newParent = state.nodes[parent.children[idx - 1]];
+  parent.children.splice(idx, 1);
+  newParent.children.push(id);
+  newParent.collapsed = false;
+  return true;
+}
+
+/** Move a node to be a sibling right after its parent (Shift+Tab). */
+function outdentNode(id) {
+  const parent = parentOf(id);
+  if (!parent || parent.id === ROOT) return false;
+  const grand = parentOf(parent.id);
+  parent.children = parent.children.filter(x => x !== id);
+  const pidx = grand.children.indexOf(parent.id);
+  grand.children.splice(pidx + 1, 0, id);
+  return true;
+}
+
+/* ==========================================================================
+   Rendering
+   The whole tree is re-rendered from state on every change. For a tool of
+   this size that's simpler and safer than patching the DOM by hand.
+   ========================================================================== */
+let editingId = null;      // which node currently has an open editor
+let pendingFocus = null;   // node id to open an editor on after next render
+
+function render() {
+  const ul = document.getElementById('tree');
+  ul.innerHTML = '';
+  const top = state.nodes[ROOT].children;
+  if (top.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'empty-state';
+    li.textContent = 'Nothing here yet. Add a top-level item to start the map.';
+    ul.appendChild(li);
+  } else {
+    top.forEach(id => ul.appendChild(renderNode(id)));
+  }
+  if (pendingFocus) {
+    const id = pendingFocus; pendingFocus = null;
+    startEdit(id);
+  }
+}
+
+function renderNode(id) {
+  const n = state.nodes[id];
+  const li = document.createElement('li');
+  li.className = 'node';
+  li.dataset.id = id;
+
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  const toggle = document.createElement('button');
+  toggle.className = 'toggle' + (n.children.length ? '' : ' leaf');
+  toggle.textContent = n.collapsed ? '▶' : '▼';
+  toggle.title = n.collapsed ? 'Expand' : 'Collapse';
+  toggle.onclick = () => { n.collapsed = !n.collapsed; save(); render(); };
+  row.appendChild(toggle);
+
+  if (editingId === id) {
+    row.classList.add('editing');
+    row.appendChild(buildEditor(n));
+  } else {
+    const text = document.createElement('div');
+    text.className = 'text' + (n.text.trim() ? '' : ' empty');
+    text.textContent = n.text.trim() ? n.text : 'Untitled — click to edit';
+    text.onclick = () => startEdit(id);
+    row.appendChild(text);
+  }
+
+  if (n.collapsed && n.children.length) {
+    const c = document.createElement('span');
+    c.className = 'count';
+    c.textContent = countDescendants(id) + ' hidden';
+    row.appendChild(c);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  actions.append(
+    actionBtn('+ child', 'Add a sub-item under this node', () => {
+      const child = addChild(id); save(); pendingFocus = child.id; render();
+    }),
+    actionBtn('+ sibling', 'Add an item after this node at the same level', () => {
+      const sib = addSibling(id); save(); pendingFocus = sib.id; render();
+    }),
+    actionBtn('delete', 'Delete this node and everything under it', () => {
+      const k = countDescendants(id);
+      const msg = k ? `Delete this node and its ${k} descendant${k === 1 ? '' : 's'}?` : 'Delete this node?';
+      if (n.text.trim() === '' && k === 0 || confirm(msg)) { removeNode(id); save(); render(); }
+    }, 'del'),
+  );
+  row.appendChild(actions);
+  li.appendChild(row);
+
+  if (n.children.length && !n.collapsed) {
+    const ul = document.createElement('ul');
+    n.children.forEach(cid => ul.appendChild(renderNode(cid)));
+    li.appendChild(ul);
+  }
+  return li;
+}
+
+function actionBtn(label, title, onClick, cls = '') {
+  const b = document.createElement('button');
+  b.textContent = label; b.title = title; b.className = cls;
+  b.onclick = (e) => { e.stopPropagation(); onClick(); };
+  return b;
+}
+
+/* ---- inline editing ---- */
+function startEdit(id) {
+  if (editingId && editingId !== id) commitEdit();   // only one editor at a time
+  editingId = id;
+  render();
+  const ta = document.querySelector('li[data-id="' + id + '"] > .row > textarea.editor');
+  if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); autosize(ta); }
+}
+
+function buildEditor(n) {
+  const ta = document.createElement('textarea');
+  ta.className = 'editor';
+  ta.rows = 1;
+  ta.value = n.text;
+  ta.oninput = () => autosize(ta);
+  ta.onblur = () => { if (editingId === n.id) { commitEdit(); render(); } };
+  ta.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      commitEdit();
+      // Enter on an empty node just closes it; otherwise add a sibling.
+      if (n.text.trim()) { const sib = addSibling(n.id); save(); pendingFocus = sib.id; }
+      render();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      editingId = null;        // discard changes
+      render();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      commitEdit();
+      const moved = e.shiftKey ? outdentNode(n.id) : indentNode(n.id);
+      if (moved) save();
+      pendingFocus = n.id;
+      render();
+    }
+  };
+  return ta;
+}
+
+function commitEdit() {
+  if (!editingId) return;
+  const ta = document.querySelector('li[data-id="' + editingId + '"] > .row > textarea.editor');
+  const n = state.nodes[editingId];
+  if (ta && n && ta.value !== n.text) { n.text = ta.value; save(); }
+  editingId = null;
+}
+
+function autosize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+
+/* ---- header controls ---- */
+document.getElementById('addRoot').onclick = () => {
+  const n = addChild(ROOT); save(); pendingFocus = n.id; render();
+};
+document.getElementById('expandAll').onclick = () => {
+  Object.values(state.nodes).forEach(n => n.collapsed = false); save(); render();
+};
+document.getElementById('collapseAll').onclick = () => {
+  Object.values(state.nodes).forEach(n => { if (n.id !== ROOT) n.collapsed = true; }); save(); render();
+};
+document.getElementById('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stuff-to-investigate-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+document.getElementById('importBtn').onclick = () => document.getElementById('importFile').click();
+document.getElementById('importFile').onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed.nodes || !parsed.nodes[ROOT]) throw new Error('missing root');
+      if (!confirm('Replace the current tree with the imported file?')) return;
+      state = parsed; save(); render();
+    } catch (err) {
+      alert('That file does not look like an export from this tool.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+};
+
+render();
+</script>
+</body>
+</html>
