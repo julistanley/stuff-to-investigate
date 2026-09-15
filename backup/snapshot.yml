@@ -1,0 +1,87 @@
+# =============================================================================
+# Nightly snapshot of the Supabase database into a git repository.
+#
+# WHERE THIS FILE GOES: into a *private* GitHub repository (for example
+# "stuff-to-investigate-backups") at the path .github/workflows/snapshot.yml.
+# It must NOT run in the public code repository, because the snapshot files
+# contain the actual contents of the map.
+#
+# One-time setup in that private repo: Settings -> Secrets and variables ->
+# Actions -> New repository secret, twice:
+#   SUPABASE_URL                 e.g. https://abcdefgh.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY    Project Settings -> API -> service_role (secret!)
+#
+# The service_role key bypasses Row Level Security. It must only ever live in
+# GitHub's encrypted secrets, never in the frontend or the public repo.
+#
+# Side effect we rely on: this daily query counts as activity, so the free
+# Supabase project is not paused for inactivity.
+# =============================================================================
+name: Nightly database snapshot
+
+on:
+  schedule:
+    - cron: '17 6 * * *'        # 06:17 UTC daily (odd minute avoids the top-of-hour rush)
+  workflow_dispatch:            # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Export tables via the REST API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL" && test -n "$KEY" || { echo "Missing secrets"; exit 1; }
+          mkdir -p snapshots
+
+          # PostgREST returns at most 1000 rows per request, so page through.
+          fetch_table () {
+            local table="$1" order="$2" out="snapshots/$1.json"
+            local page=1000 start=0 end chunk n
+            echo '[]' > "$out"
+            while :; do
+              end=$((start + page - 1))
+              chunk=$(curl -fsS "$SUPABASE_URL/rest/v1/$table?select=*&order=$order" \
+                        -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+                        -H "Range-Unit: items" -H "Range: $start-$end")
+              n=$(printf '%s' "$chunk" | jq length)
+              jq -s '.[0] + .[1]' "$out" <(printf '%s' "$chunk") > "$out.tmp" && mv "$out.tmp" "$out"
+              [ "$n" -lt "$page" ] && break
+              start=$((start + page))
+            done
+            echo "$table: $(jq length "$out") rows"
+          }
+
+          fetch_table nodes        id
+          fetch_table node_history id
+          fetch_table profiles     id
+          fetch_table app_settings key
+
+          # Human-readable outline of the live map, handy for eyeballing diffs.
+          jq -r '
+            . as $all
+            | def kids($p): [ $all[] | select(.parent_id == $p and .deleted_at == null) ] | sort_by(.position);
+              def indent($d): if $d == 0 then "" else "  " * $d end;
+              def outline($p; $d): kids($p)[] | ( indent($d) + "- " + (.text | gsub("\n"; " ")) ), outline(.id; $d + 1);
+              outline(null; 0)
+          ' snapshots/nodes.json > snapshots/outline.md
+
+      - name: Commit if anything changed
+        run: |
+          git config user.name  "snapshot-bot"
+          git config user.email "snapshot-bot@users.noreply.github.com"
+          git add snapshots
+          if git diff --cached --quiet; then
+            echo "No changes since last snapshot."
+          else
+            git commit -m "Snapshot $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi

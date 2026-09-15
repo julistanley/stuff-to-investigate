@@ -5,7 +5,8 @@
       "Bash(mkdir -p /Users/juli/Documents/Stuff_To_Investigate/.claude)",
       "Bash(mv '/Users/juli/Library/Application Support/Claude/scratch-workspaces/1fcdba31-8eaa-41c4-81e4-6d9ca0e45033/18a7adf9-2431-4be1-baa2-5ab8a760c725/scratch-2026-09-15-dd5b5f/.claude/launch.json' /Users/juli/Documents/Stuff_To_Investigate/.claude/launch.json)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Add Supabase backend: schema, auth, realtime store, trash/history/admin, backup workflow *)"
     ]
   }
 }
