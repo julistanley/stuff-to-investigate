@@ -44,10 +44,10 @@ that file becomes an approved admin automatically when it signs up.
 Admin approval is the gate, and the free tier's built-in mailer is limited to a
 few messages per hour, which would otherwise block signups.
 
-**Authentication → URL Configuration**: set *Site URL* to where the app is
-hosted (for GitHub Pages, `https://<user>.github.io/<repo>/`) and add the same
-URL plus `http://localhost:8765` to *Redirect URLs*. Password-reset links come
-back to these addresses.
+**Authentication → URL Configuration**: set *Site URL* to
+`https://julistanley.github.io/stuff-to-investigate/` and add that URL plus
+`http://localhost:8765` to *Redirect URLs*. Password-reset links come back to
+these addresses.
 
 ### 3. Frontend configuration
 
@@ -56,13 +56,15 @@ Copy the **Project URL** and **anon / publishable key** from
 
 ### 4. Hosting
 
-Push to GitHub, then **Settings → Pages → Deploy from a branch → main / (root)**.
+Code: https://github.com/julistanley/stuff-to-investigate (public).
+Live app: https://julistanley.github.io/stuff-to-investigate/ — GitHub Pages
+deploys the `main` branch root on every push.
 
 ### 5. Backups (private repo)
 
-Create a private repository, e.g. `stuff-to-investigate-backups`. Copy
-`backup/snapshot.yml` into it at `.github/workflows/snapshot.yml`. In that
-repo's **Settings → Secrets and variables → Actions** add:
+The private repository https://github.com/julistanley/stuff-to-investigate-backups
+holds `.github/workflows/snapshot.yml` (a copy of `backup/snapshot.yml` here).
+In that repo's **Settings → Secrets and variables → Actions** add:
 
 - `SUPABASE_URL` — the project URL
 - `SUPABASE_SERVICE_ROLE_KEY` — **Project Settings → API → service_role**.
