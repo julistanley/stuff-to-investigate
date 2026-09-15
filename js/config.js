@@ -4,8 +4,8 @@
 //
 // Find them in the Supabase dashboard: Project Settings -> API.
 
-export const SUPABASE_URL = 'REPLACE_WITH_PROJECT_URL';       // e.g. https://abcdefgh.supabase.co
-export const SUPABASE_ANON_KEY = 'REPLACE_WITH_ANON_KEY';     // starts with "eyJ" or "sb_publishable_"
+export const SUPABASE_URL = 'https://urkarkmwxcygdepvpaps.supabase.co';
+export const SUPABASE_ANON_KEY = 'sb_publishable_SSWsa7jV62tNdH0IJ-ejfA_pLRh3Oiq';
 
 export function isConfigured() {
   return !SUPABASE_URL.startsWith('REPLACE') && !SUPABASE_ANON_KEY.startsWith('REPLACE');
