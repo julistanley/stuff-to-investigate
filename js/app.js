@@ -23,8 +23,8 @@ async function main() {
   if (!isConfigured()) { showScreen('setup'); return; }
 
   // Loaded lazily so an unconfigured page never tries to build a client.
-  const [auth, store, tree, panels] = await Promise.all([
-    import('./auth.js'), import('./store.js'), import('./tree.js'), import('./panels.js'),
+  const [auth, store, tree, panels, detail] = await Promise.all([
+    import('./auth.js'), import('./store.js'), import('./tree.js'), import('./panels.js'), import('./detail.js'),
   ]);
 
   store.setErrorHandler((e) => toast('Could not save: ' + (e.message || e)));
@@ -98,7 +98,8 @@ async function main() {
     if (appStarted) return;
     appStarted = true;
 
-    tree.mount($('#tree'), { onHistory: panels.showHistory });
+    detail.mount($('#detail'));
+    tree.mount($('#tree'), { onHistory: panels.showHistory, onOpen: detail.open });
     panels.mountTrash($('#trash'));
     panels.mountAdmin($('#admin'));
     panels.mountHistory($('#history-dialog'));
@@ -152,7 +153,7 @@ async function main() {
   async function route(session) {
     clearInterval(pendingTimer);
     if (!session) {
-      currentUserId = null; store.stopRealtime(); store.clear(); appStarted = false;
+      currentUserId = null; store.stopRealtime(); if (appStarted) detail.close(); store.clear(); appStarted = false;
       showAuth('signin'); return;
     }
     let profile;

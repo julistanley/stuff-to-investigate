@@ -82,20 +82,23 @@
   </header>
 
   <main>
-    <div class="panel" data-panel="map">
-      <div class="toolbar">
-        <button id="expandAll" title="Expand every node">Expand all</button>
-        <button id="collapseAll" title="Collapse every node">Collapse all</button>
-        <button id="exportBtn" title="Download the whole map as a JSON file">Export JSON</button>
+    <div class="panel map-layout" data-panel="map">
+      <div class="map-main">
+        <div class="toolbar">
+          <button id="expandAll" title="Expand every node">Expand all</button>
+          <button id="collapseAll" title="Collapse every node">Collapse all</button>
+          <button id="exportBtn" title="Download the whole map as a JSON file">Export JSON</button>
+        </div>
+        <p class="help">
+          Click text to edit the title. <strong>Double-click</strong> a row to open the full editor with Markdown notes.
+          <kbd>Enter</kbd> saves and adds a sibling below, <kbd>Tab</kbd> indents under the node above,
+          <kbd>Shift</kbd>+<kbd>Tab</kbd> outdents, <kbd>Esc</kbd> cancels. Hover a node for
+          <em>details</em>, <em>+ child</em>, <em>+ sibling</em>, <em>history</em>, and <em>trash</em>.
+        </p>
+        <ul class="tree" id="tree"></ul>
+        <button class="add-root primary" id="addRoot">+ Add top-level item</button>
       </div>
-      <p class="help">
-        Click text to edit. <kbd>Enter</kbd> saves and adds a sibling below,
-        <kbd>Shift</kbd>+<kbd>Enter</kbd> inserts a line break, <kbd>Tab</kbd> indents under the node above,
-        <kbd>Shift</kbd>+<kbd>Tab</kbd> outdents, <kbd>Esc</kbd> cancels. Hover a node for
-        <em>+ child</em>, <em>+ sibling</em>, <em>history</em>, and <em>trash</em>.
-      </p>
-      <ul class="tree" id="tree"></ul>
-      <button class="add-root primary" id="addRoot">+ Add top-level item</button>
+      <aside id="detail" class="detail" hidden aria-label="Item details"></aside>
     </div>
 
     <div class="panel" data-panel="trash" hidden>

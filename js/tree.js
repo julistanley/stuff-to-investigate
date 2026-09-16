@@ -9,10 +9,15 @@ let editingId = null;      // node with an open editor
 let draft = null;          // text typed so far in the open editor (survives re-renders)
 let pendingFocus = null;   // node id to open an editor on after next render
 let onHistory = () => {};  // callback(nodeId) supplied by app.js
+let onOpen = () => {};     // callback(nodeId): open the detail panel
+let selectedId = null;     // node currently shown in the detail panel
+
+export function setSelected(id) { selectedId = id; render(); }
 
 export function mount(el, opts = {}) {
   container = el;
   onHistory = opts.onHistory || onHistory;
+  onOpen = opts.onOpen || onOpen;
   store.subscribe((what) => {
     if (what === 'nodes' || what === 'reload' || what === 'ui') render();
   });
@@ -71,6 +76,13 @@ function renderNode(n, idx) {
   const row = document.createElement('div');
   row.className = 'row';
   if (n.__optimistic) row.classList.add('saving');
+  if (n.id === selectedId) row.classList.add('selected');
+  row.ondblclick = (e) => {
+    if (e.target.closest('button, select')) return;
+    e.preventDefault();
+    commitEdit(); render();
+    onOpen(n.id);
+  };
 
   const toggle = document.createElement('button');
   toggle.className = 'toggle' + (kids.length ? '' : ' leaf');
@@ -90,6 +102,21 @@ function renderNode(n, idx) {
     row.appendChild(text);
   }
 
+  if (n.kind && n.kind !== 'question') {
+    const k = document.createElement('span');
+    k.className = 'kind ' + n.kind;
+    k.textContent = n.kind;
+    row.appendChild(k);
+  }
+  if ((n.body || '').trim()) {
+    const b = document.createElement('button');
+    b.className = 'has-notes';
+    b.title = 'Has notes — open details';
+    b.textContent = '≡';
+    b.onclick = (e) => { e.stopPropagation(); onOpen(n.id); };
+    row.appendChild(b);
+  }
+
   if (collapsed && kids.length) {
     const c = document.createElement('span');
     c.className = 'count';
@@ -100,6 +127,7 @@ function renderNode(n, idx) {
   const actions = document.createElement('div');
   actions.className = 'actions';
   actions.append(
+    actionBtn('details', 'Open the full editor (or double-click the row)', () => onOpen(n.id)),
     actionBtn('+ child', 'Add a sub-item under this node', () => {
       const c = store.createNode({ parentId: n.id });
       store.setCollapsed(n.id, false);
