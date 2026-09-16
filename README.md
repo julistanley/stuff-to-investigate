@@ -26,6 +26,7 @@ and accounts must be approved by an admin.
     js/store.js                in-memory data, optimistic writes, realtime sync
     js/tree.js                 the editable list view
     js/panels.js               trash, history dialog, admin user management
+    js/detail.js               side panel: title, type, Markdown notes with preview
     supabase/migrations/       SQL to create tables, triggers, and policies
     backup/snapshot.yml        GitHub Actions workflow for the private backup repo
 
@@ -34,9 +35,13 @@ and accounts must be approved by an admin.
 ### 1. Database
 
 In the Supabase dashboard open **SQL Editor → New query**, paste the contents of
-`supabase/migrations/0001_init.sql`, and run it. This creates the tables,
-triggers, and security policies. The email listed under `bootstrap_admins` in
-that file becomes an approved admin automatically when it signs up.
+each file in `supabase/migrations/` **in numeric order**, and run it:
+
+- `0001_init.sql` — tables, triggers, and security policies. The email listed
+  under `bootstrap_admins` becomes an approved admin automatically on signup.
+- `0002_node_body.sql` — adds the long-form Markdown `body` column.
+
+Each migration is safe to run once. Keep a note of which have been applied.
 
 ### 2. Auth settings
 
@@ -84,7 +89,8 @@ served over HTTP rather than opened as a file.
 
 ## Data model
 
-- **nodes**: `parent_id` (null = top level) and a fractional `position` give the
+- **nodes**: `text` is the one-line title; `body` is long-form Markdown.
+  `parent_id` (null = top level) and a fractional `position` give the
   hierarchy and ordering. `kind` is question / finding / note. `deleted_at`
   marks the top of a trashed subtree.
 - **node_history**: written by a trigger on every change, holds the previous

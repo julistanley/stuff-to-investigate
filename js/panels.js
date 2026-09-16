@@ -69,7 +69,8 @@ export async function showHistory(nodeId) {
   cur.className = 'version current';
   cur.innerHTML = `<div class="version-head"><strong>Current</strong>
       <span class="muted">edited ${relTime(n.updated_at)} by ${esc(store.nameOf(n.updated_by))} · ${esc(n.kind)}</span></div>
-      <div class="version-text">${esc(n.text) || '<em>Untitled</em>'}</div>`;
+      <div class="version-text">${esc(n.text) || '<em>Untitled</em>'}</div>
+      ${(n.body || '').trim() ? `<pre class="version-body">${esc(n.body)}</pre>` : ''}`;
   body.appendChild(cur);
 
   // Each history row stores the row AS IT WAS BEFORE the change; 'insert' stores
@@ -89,11 +90,18 @@ export async function showHistory(nodeId) {
         <span class="muted" title="${new Date(r.changed_at).toLocaleString()}">${relTime(r.changed_at)} by ${esc(store.nameOf(r.changed_by))}</span>
       </div>
       <div class="version-text">${esc(d.text) || '<em>Untitled</em>'}</div>`;
+    if ((d.body || '').trim()) {
+      const bodyEl = document.createElement('pre');
+      bodyEl.className = 'version-body';
+      bodyEl.textContent = d.body;
+      v.appendChild(bodyEl);
+    }
     const actions = document.createElement('div');
     actions.className = 'version-actions';
-    if (d.text !== n.text || d.kind !== n.kind) {
-      actions.appendChild(btn('Restore this text', () => {
-        store.updateNode(nodeId, { text: d.text, kind: d.kind });
+    const changed = d.text !== n.text || d.kind !== n.kind || (d.body || '') !== (n.body || '');
+    if (changed) {
+      actions.appendChild(btn('Restore this version', () => {
+        store.updateNode(nodeId, { text: d.text, kind: d.kind, body: d.body || '' });
         dialog.close();
       }));
     }
